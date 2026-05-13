@@ -117,7 +117,7 @@ body::before {
 .controls {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 20px;  
 }
 
 /* Base button reset used by sidebar controls */
