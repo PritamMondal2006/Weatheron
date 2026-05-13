@@ -4,25 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEATHERON - Live Weather Radar</title>
-
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <header>WEATHERON</header>
-
-    <div class="controls">
-        <button class="active" onclick="toggleLayer(0)">🔥 Weather</button>
-        <button onclick="toggleLayer(1)">🏥 Hospitals</button>
-        <button id="location-btn" onclick="getCurrentLocation()">📍 My Location</button>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <p class="title">WEATHERON</p>
+        <div class="controls">
+            <button class="active" onclick="toggleLayer(0)">🌡️</button>
+            <button onclick="toggleLayer(1)">🏥</button>
+            <button id="location-btn" onclick="getCurrentLocation()">📍</button>
+            <button id="ai-btn" onclick="runAIPrediction()" title="AI Risk Prediction">🤖</button>
+        </div>
+        <p class="watermark">Made by Team Null</p>        
     </div>
 
-    <div id="map"></div>
-
-    <!-- WEATHER PANEL -->
+    <!-- WEATHER BOX -->
     <div id="weather-box">
         <h3>🌦 Weather</h3>
         <p id="location-name"></p>
@@ -33,24 +33,104 @@
         <p id="wind"></p>
         <p id="alert-box"></p>
     </div>
+    
+    <!-- MAP -->
+    <div id="map"></div>
 
     <!-- DETAILS PANEL -->
-   <div id="detailsPanel" style="
-    position: fixed;
-    right: 10px;
-    top: 140px;
-    width: 250px;
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    display: none;
-    z-index: 1000;
-">
+    <div id="detailsPanel" style="
+        position: fixed;
+        right: 25px;
+        top: 25px;
+        width: 250px;
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        display: none;
+        z-index: 1000;
+    "></div>
+
+    <!-- AI RISK PREDICTION PANEL -->
+    <div id="aiRiskPanel">
+        <div id="aiRiskHeader">
+            <span>🤖 AI Risk Prediction</span>
+            <button id="aiCloseBtn" onclick="closeAIPanel()">✕</button>
+        </div>
+        <div id="aiRiskContent">
+            <div id="aiLoader" class="ai-loader" style="display:none;">
+                <div class="ai-spinner"></div>
+                <p>Analyzing risk data...</p>
+            </div>
+            <div id="aiResult" style="display:none;"></div>
+            <div id="aiIdle">
+                <p style="color:#7ecfdf; text-align:center; margin-top:20px;">
+                    Click <b>🤖</b> in the sidebar or the button below to run an AI-powered disaster risk analysis for your current map location.
+                </p>
+                <button id="aiRunBtn" onclick="runAIPrediction()">⚡ Analyze Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- 💬 AI EMERGENCY CHATBOT                    -->
+    <!-- ═══════════════════════════════════════════ -->
+
+    <!-- Floating Chat Button -->
+    <button id="chatToggleBtn" onclick="toggleChat()" title="AI Emergency Assistant">
+        <span id="chatBtnIcon">💬</span>
+    </button>
+
+    <!-- Chat Window -->
+    <div id="chatWindow">
+        <!-- Header -->
+        <div id="chatHeader">
+            <div id="chatHeaderLeft">
+                <div id="chatAvatar">🤖</div>
+                <div>
+                    <div id="chatTitle">Emergency Assistant</div>
+                    <div id="chatStatus">
+                        <span id="chatStatusDot"></span>
+                        <span id="chatStatusText">Online · Gemini 2.5 Flash</span>
+                    </div>
+                </div>
+            </div>
+            <div id="chatHeaderRight">
+                <button class="chat-header-btn" onclick="minimizeChat()" title="Minimize">─</button>
+                <button class="chat-header-btn" onclick="closeChat()" title="Close">✕</button>
+            </div>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <div id="quickActions">
+            <button class="quick-btn" onclick="quickAction('Nearest Hospital')">🏥 Hospital</button>
+            <button class="quick-btn" onclick="quickAction('Heatwave safety tips')">🔥 Heatwave</button>
+            <button class="quick-btn" onclick="quickAction('Flood safety tips')">🌊 Flood</button>
+            <button class="quick-btn" onclick="quickAction('Call emergency services in India')">🚨 Emergency</button>
+        </div>
+
+        <!-- Messages Area -->
+        <div id="chatMessages"></div>
+
+        <!-- Typing Indicator -->
+        <div id="typingIndicator" style="display:none;">
+            <div class="chat-ai-avatar">🤖</div>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div id="chatInputArea">
+            <button id="voiceBtn" onclick="toggleVoice()" title="Voice Input">🎤</button>
+            <input id="chatInput" type="text" placeholder="Ask about emergency, weather, safety..." 
+                   onkeydown="if(event.key==='Enter') sendChatMessage()" maxlength="500" />
+            <button id="chatSendBtn" onclick="sendChatMessage()">➤</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-
     <script src="script.js"></script>
 </body>
 </html>
