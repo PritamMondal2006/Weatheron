@@ -64,7 +64,7 @@ function initMap() {
 // WEATHER FETCH — uses forecast endpoint so we get 3 future days for free
 async function fetchWeather(lat, lng) {
     try {
-        const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lng}&days=3&aqi=no`;
+        const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lng}&days=3&aqi=yes`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -74,6 +74,7 @@ async function fetchWeather(lat, lng) {
         displayWeather(data);
         checkAlerts(data);
         displayForecast(data);
+        displayAQI(data);
 
         // Trigger Gemini forecast with debounce (1.5s after weather loads)
         clearTimeout(predictionDebounceTimer);
@@ -229,6 +230,49 @@ function displayUVIndex(uv) {
     spfEl.innerHTML = `<span class="spf-label">Recommended</span><span class="spf-value" style="color:${info.color}">${spf}</span>`;
 }
 
+// ── AQI DISPLAY ───────────────────────────────────────────
+function getAQIInfo(usEpaIndex) {
+    // US EPA AQI categories (WeatherAPI returns 1–6)
+    const cats = [
+        null, // 0 = unused
+        { label: "Good",                  color: "#4ade80", pct: 10  },
+        { label: "Moderate",              color: "#fbbf24", pct: 30  },
+        { label: "Unhealthy for Some",    color: "#fb923c", pct: 50  },
+        { label: "Unhealthy",             color: "#f87171", pct: 65  },
+        { label: "Very Unhealthy",        color: "#c084fc", pct: 82  },
+        { label: "Hazardous",             color: "#e879f9", pct: 100 },
+    ];
+    return cats[usEpaIndex] || { label: "N/A", color: "#7ecfdf", pct: 0 };
+}
+
+function displayAQI(data) {
+    const aqi = data?.current?.air_quality;
+    if (!aqi) return;
+
+    const index = aqi["us-epa-index"];
+    const info  = getAQIInfo(index);
+
+    const badge = document.getElementById("aqi-badge");
+    badge.textContent        = index ?? "--";
+    badge.style.color        = info.color;
+    badge.style.background   = info.color + "20";
+    badge.style.border       = `1px solid ${info.color}55`;
+
+    const fill = document.getElementById("aqi-bar-fill");
+    fill.style.width      = info.pct + "%";
+    fill.style.background = `linear-gradient(90deg, ${info.color}99, ${info.color})`;
+
+    const label = document.getElementById("aqi-label");
+    label.textContent  = info.label;
+    label.style.color  = info.color;
+
+    const fmt = v => (v != null ? parseFloat(v).toFixed(1) + " µg" : "--");
+    document.getElementById("aqi-pm25").textContent = fmt(aqi.pm2_5);
+    document.getElementById("aqi-pm10").textContent = fmt(aqi.pm10);
+    document.getElementById("aqi-o3").textContent   = fmt(aqi.o3);
+    document.getElementById("aqi-no2").textContent  = fmt(aqi.no2);
+}
+
 // ── GEMINI WEATHER PREDICTION ────────────────────────────
 async function fetchWeatherPrediction(data) {
     const predBox    = document.getElementById("weather-prediction");
@@ -277,7 +321,7 @@ function checkAlerts(data) {
     let message = "";
 
     if (temp > 40) message = "🔥 Heatwave Alert!";
-    if (condition.includes("rain")) message = "🌧 Rain Alert!";
+    if (condition.includes("rain")) message = "🌧️ Rain Alert!";
 
     document.getElementById("alert-box").innerText = message;
 
