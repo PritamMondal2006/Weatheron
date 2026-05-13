@@ -45,10 +45,42 @@
         autocomplete="off"
     >
 
-    <button id="search-btn" onclick="searchLocation()">🔍</button>
+    <button id="search-btn"
+    onclick="searchLocation()">🔍</button>
+
     <div id="suggestions"></div>
+
+</div>
+    
+    <!-- ROUTE SEARCH -->
+<div id="route-box">
+
+    <div class="route-input-wrap">
+
+        <input type="text"
+        id="source-input"
+        placeholder="Source location">
+
+        <div class="route-suggestions"
+        id="source-suggestions"></div>
+
     </div>
-    <!-- MAP -->
+
+    <div class="route-input-wrap">
+
+        <input type="text"
+        id="destination-input"
+        placeholder="Destination location">
+
+        <div class="route-suggestions"
+        id="destination-suggestions"></div>
+
+    </div>
+
+    <button onclick="createManualRoute()">
+        🚗 Route
+    </button></div>
+    
     <div id="map"></div>
 
     <!-- DETAILS PANEL -->
