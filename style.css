@@ -1258,11 +1258,10 @@ button.active {
 
 /* ── 3-DAY FORECAST STRIP ── */
 #forecast-strip {
-    position: absolute;
-    left: 185px;
-    bottom: 1px;
-    margin-bottom: 28px;
-    margin-left: 260px;
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1000;
     animation: slideUpFade 0.7s cubic-bezier(.22,1,.36,1);
 }
@@ -1294,8 +1293,8 @@ button.active {
         var(--neon-glow-soft),
         0 8px 32px rgba(0, 0, 0, 0.5),
         inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    padding: 14px 16px;
-    width: 130px;
+    padding: 12px 14px;
+    width: 120px;
     display: flex;
     flex-direction: column;
     align-items: center;

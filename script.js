@@ -64,7 +64,7 @@ function initMap() {
 // WEATHER FETCH — uses forecast endpoint so we get 3 future days for free
 async function fetchWeather(lat, lng) {
     try {
-        const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lng}&days=4&aqi=no`;
+        const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lng}&days=3&aqi=no`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -100,8 +100,8 @@ function conditionEmoji(code) {
 function displayForecast(data) {
     if (!data.forecast || !data.forecast.forecastday) return;
     const days = data.forecast.forecastday;
-    // index 0 = today, take next 3
-    const futureDays = days.slice(1, 4);
+    // index 0 = today, 1 = tomorrow, 2 = day after — free plan gives exactly 3 days
+    const futureDays = days.slice(0, 3);
     const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
     futureDays.forEach((day, i) => {
@@ -109,7 +109,7 @@ function displayForecast(data) {
         if (!card) return;
 
         const date     = new Date(day.date + "T00:00:00");
-        const dayLabel = i === 0 ? "Tomorrow" : dayNames[date.getDay()];
+        const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow" : dayNames[date.getDay()];
         const high     = Math.round(day.day.maxtemp_c);
         const low      = Math.round(day.day.mintemp_c);
         const rain     = day.day.daily_chance_of_rain + "%";
