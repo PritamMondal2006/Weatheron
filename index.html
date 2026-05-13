@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEATHERON - Live Weather Radar</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header>WEATHERON</header>
+
+    <div class="controls">
+        <button class="active" onclick="toggleLayer(0)">🔥 Weather</button>
+        <button onclick="toggleLayer(1)">🏥 Hospitals</button>
+        <button id="location-btn" onclick="getCurrentLocation()">📍 My Location</button>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- WEATHER PANEL -->
+    <div id="weather-box">
+        <h3>🌦 Weather</h3>
+        <p id="location-name"></p>
+        <p id="temp">--</p>
+        <p id="condition">--</p>
+        <p id="feels"></p>
+        <p id="humidity"></p>
+        <p id="wind"></p>
+        <p id="alert-box"></p>
+    </div>
+
+    <!-- DETAILS PANEL -->
+   <div id="detailsPanel" style="
+    position: fixed;
+    right: 10px;
+    top: 140px;
+    width: 250px;
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 1000;
+">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
