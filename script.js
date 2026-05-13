@@ -190,6 +190,22 @@ function getUVInfo(uv) {
     return             { category: "Extreme — avoid direct sun exposure",    color: "#c084fc", barGradient: "#c084fc, #a855f7",          pct: 100 };
 }
 
+function uvToSPF(uv) {
+    // Standard dermatology formula: minimum SPF = UV index × 2 + 2
+    // Rounded up to nearest common SPF value: 15, 20, 30, 50, 50+
+    if (uv === null || uv === undefined || isNaN(uv)) return { min: "N/A", label: "SPF recommended" };
+    const val = parseFloat(uv);
+    const raw = Math.round(val * 2 + 2);
+    let spf;
+    if (raw <= 4)       spf = "None needed";
+    else if (raw <= 15) spf = "SPF 15";
+    else if (raw <= 20) spf = "SPF 20";
+    else if (raw <= 30) spf = "SPF 30";
+    else if (raw <= 50) spf = "SPF 50";
+    else                spf = "SPF 50+";
+    return spf;
+}
+
 function displayUVIndex(uv) {
     const info = getUVInfo(uv);
     const displayVal = (uv !== null && uv !== undefined) ? parseFloat(uv).toFixed(1) : "N/A";
@@ -206,6 +222,11 @@ function displayUVIndex(uv) {
 
     document.getElementById("uv-category").textContent = info.category;
     document.getElementById("uv-category").style.color = info.color;
+
+    // SPF recommendation
+    const spfEl = document.getElementById("uv-spf");
+    const spf = uvToSPF(uv !== null && uv !== undefined ? parseFloat(uv) : null);
+    spfEl.innerHTML = `<span class="spf-label">Recommended</span><span class="spf-value" style="color:${info.color}">${spf}</span>`;
 }
 
 // ── GEMINI WEATHER PREDICTION ────────────────────────────
@@ -448,7 +469,7 @@ async function showDetails(name, lat, lon, phone, emergency) {
 // ═══════════════════════════════════════════════════
 // 🔑 GEMINI API KEY
 // ═══════════════════════════════════════════════════
-const GEMINI_API_KEY = "";
+const GEMINI_API_KEY = "AIzaSyAWpLqmIZeBOBCp59FQw7GMTRlNfysW27o";
 const GEMINI_MODEL   = "gemini-2.5-flash";
 const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 

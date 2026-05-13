@@ -354,6 +354,37 @@ button.active {
     font-style: italic;
 }
 
+#uv-spf {
+    margin-top: 6px;
+    padding: 5px 10px;
+    background: rgba(0, 212, 255, 0.06);
+    border: 1px solid rgba(0, 212, 255, 0.14);
+    border-radius: 8px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    color: var(--text-primary);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+#uv-spf .spf-label {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+#uv-spf .spf-value {
+    font-size: 15px;
+    font-weight: 700;
+}
+
 /* ── WEATHER PREDICTION BOX ── */
 #weather-prediction {
     margin-top: 10px;
@@ -1382,3 +1413,4 @@ button.active {
     color: var(--text-muted);
     letter-spacing: 0.03em;
 }
+
