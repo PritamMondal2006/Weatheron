@@ -7,6 +7,7 @@ let userLat = 22.5726;
 let userLng = 88.3639;
 let centerMarker;
 let zoneCircle;
+let routingControl
 
 // 🔑 WeatherAPI Key
 const API_KEY = "eb58ff0428f74f66835134855260305";
@@ -892,4 +893,245 @@ input.addEventListener("input", () => {
 
 });
 
-window.onload = initMap;
+function setupRouteAutocomplete(inputId, suggestionId){
+
+    const input = document.getElementById(inputId);
+
+    const suggestionBox =
+    document.getElementById(suggestionId);
+
+    let timeout;
+
+    input.addEventListener("input", () => {
+
+        clearTimeout(timeout);
+
+        timeout = setTimeout(async () => {
+
+            const query = input.value.trim();
+
+            if(query.length < 2){
+
+                suggestionBox.style.display = "none";
+
+                return;
+            }
+
+            try{
+
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`
+                );
+
+                const data = await res.json();
+
+                suggestionBox.innerHTML = "";
+
+                if(data.length === 0){
+
+                    suggestionBox.style.display = "none";
+
+                    return;
+                }
+
+                data.forEach(place => {
+
+                    const item =
+                    document.createElement("div");
+
+                    item.className = "suggestion-item";
+
+                    item.innerText =
+                    place.display_name;
+
+                    item.onclick = () => {
+
+                        input.value =
+                        place.display_name;
+
+                        suggestionBox.style.display =
+                        "none";
+                    };
+
+                    suggestionBox.appendChild(item);
+
+                });
+
+                suggestionBox.style.display =
+                "block";
+
+            } catch(err){
+
+                console.log(err);
+
+            }
+
+        }, 400);
+
+    });
+
+    // Hide on outside click
+    document.addEventListener("click", (e) => {
+
+        if(!suggestionBox.contains(e.target)
+        && e.target !== input){
+
+            suggestionBox.style.display = "none";
+
+        }
+
+    });
+}
+
+// ROUTE BUTTON
+    const routeBtn = popupNode.querySelector(".route-btn");
+
+    if(routeBtn){
+
+        routeBtn.onclick = function(){
+
+            showRoute(
+                this.dataset.lat,
+                this.dataset.lon
+            );
+
+        };
+    }
+
+});
+
+            // ✅ KEEP THIS (important for clearing markers)
+            markers.push(marker);
+        });
+
+    } catch (err) {
+        console.error("Error fetching hospitals:", err);
+    }
+}
+
+// SHOW ROUTE
+function showRoute(destLat, destLng) {
+
+    // remove old route
+    if (routingControl) {
+        map.removeControl(routingControl);
+    }
+
+    routingControl = L.Routing.control({
+
+        waypoints: [
+            L.latLng(userLat, userLng), // current location
+            L.latLng(destLat, destLng)  // destination
+        ],
+
+        routeWhileDragging: false,
+
+        lineOptions: {
+            styles: [{ color: '#0ea5e9', weight: 6 }]
+        },
+
+        createMarker: function(i, wp) {
+
+            if(i === 0){
+                return L.marker(wp.latLng)
+                    .bindPopup("📍 Your Location");
+            }
+
+            return L.marker(wp.latLng)
+                .bindPopup("🏥 Destination");
+        }
+
+    }).addTo(map);
+}
+
+
+//RouteMap
+async function createManualRoute() {
+
+    const source = document.getElementById("source-input").value;
+    const destination = document.getElementById("destination-input").value;
+
+    if(!source || !destination){
+        alert("Enter both locations");
+        return;
+    }
+
+    try{
+
+        // SOURCE
+        let res1 = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${source}`
+        );
+
+        let data1 = await res1.json();
+
+        // DESTINATION
+        let res2 = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${destination}`
+        );
+
+        let data2 = await res2.json();
+
+        if(data1.length === 0 || data2.length === 0){
+            alert("Location not found");
+            return;
+        }
+
+        const sourceLat = parseFloat(data1[0].lat);
+        const sourceLon = parseFloat(data1[0].lon);
+
+        const destLat = parseFloat(data2[0].lat);
+        const destLon = parseFloat(data2[0].lon);
+
+        // REMOVE OLD ROUTE
+        if(routingControl){
+            map.removeControl(routingControl);
+        }
+
+        // CREATE ROUTE
+        routingControl = L.Routing.control({
+
+            waypoints: [
+                L.latLng(sourceLat, sourceLon),
+                L.latLng(destLat, destLon)
+            ],
+
+            routeWhileDragging:false,
+
+            lineOptions:{
+                styles:[{
+                    color:"#0ea5e9",
+                    weight:6
+                }]
+            }
+
+        }).addTo(map);
+
+        // FIT MAP
+        map.fitBounds([
+            [sourceLat, sourceLon],
+            [destLat, destLon]
+        ]);
+
+    } catch(err){
+
+        console.log("Route error:", err);
+
+    }
+}
+
+window.onload = () => {
+
+    initMap();
+
+    setupRouteAutocomplete(
+        "source-input",
+        "source-suggestions"
+    );
+
+    setupRouteAutocomplete(
+        "destination-input",
+        "destination-suggestions"
+    );
+
+};
