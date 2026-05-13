@@ -7,13 +7,15 @@ let userLat = 22.5726;
 let userLng = 88.3639;
 let centerMarker;
 let zoneCircle;
-let routingControl
 
 // 🔑 WeatherAPI Key
 const API_KEY = "eb58ff0428f74f66835134855260305";
 
 // Cache last weather data for AI prediction
 let lastWeatherData = null;
+
+// Debounce weather prediction so rapid map moves don't spam Gemini
+let predictionDebounceTimer = null;
 
 // ICONS
 const hospitalIcon = L.icon({
@@ -59,45 +61,102 @@ function initMap() {
     });
 }
 
-// WEATHER FETCH
+// WEATHER FETCH — uses forecast endpoint so we get 3 future days for free
 async function fetchWeather(lat, lng) {
     try {
-        const url = `https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${lat},${lng}&aqi=no`;
+        const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lng}&days=4&aqi=no`;
         const res = await fetch(url);
         const data = await res.json();
 
         console.log(data);
-        lastWeatherData = data; // 💾 Cache for AI
+        lastWeatherData = data;
 
         displayWeather(data);
         checkAlerts(data);
+        displayForecast(data);
+
+        // Trigger Gemini forecast with debounce (1.5s after weather loads)
+        clearTimeout(predictionDebounceTimer);
+        predictionDebounceTimer = setTimeout(() => fetchWeatherPrediction(data), 1500);
+
     } catch (err) {
         console.log("Weather error:", err);
     }
 }
 
+// 3-DAY FORECAST DISPLAY
+function conditionEmoji(code) {
+    if (code === 1000) return "☀️";
+    if ([1003,1006,1009].includes(code)) return "⛅";
+    if ([1030,1135,1147].includes(code)) return "🌫️";
+    if ([1063,1180,1183,1186,1189,1192,1195,1240,1243,1246].includes(code)) return "🌧️";
+    if ([1066,1114,1117,1210,1213,1216,1219,1222,1225,1255,1258].includes(code)) return "❄️";
+    if ([1069,1072,1168,1171,1198,1201,1204,1207,1249,1252].includes(code)) return "🌨️";
+    if ([1087,1273,1276,1279,1282].includes(code)) return "⛈️";
+    if ([1150,1153,1168,1171].includes(code)) return "🌦️";
+    return "🌤️";
+}
+
+function displayForecast(data) {
+    if (!data.forecast || !data.forecast.forecastday) return;
+    const days = data.forecast.forecastday;
+    // index 0 = today, take next 3
+    const futureDays = days.slice(1, 4);
+    const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+    futureDays.forEach((day, i) => {
+        const card = document.getElementById("fc-" + i);
+        if (!card) return;
+
+        const date     = new Date(day.date + "T00:00:00");
+        const dayLabel = i === 0 ? "Tomorrow" : dayNames[date.getDay()];
+        const high     = Math.round(day.day.maxtemp_c);
+        const low      = Math.round(day.day.mintemp_c);
+        const rain     = day.day.daily_chance_of_rain + "%";
+        const uv       = day.day.uv != null ? parseFloat(day.day.uv).toFixed(1) : "N/A";
+        const condition = day.day.condition.text;
+        const emoji    = conditionEmoji(day.day.condition.code);
+
+        card.querySelector(".fc-day").textContent       = dayLabel;
+        card.querySelector(".fc-icon").textContent      = emoji;
+        card.querySelector(".fc-condition").textContent = condition;
+        card.querySelector(".fc-high").textContent      = high + "°";
+        card.querySelector(".fc-low").textContent       = low + "°";
+        card.querySelector(".fc-rain").textContent      = "💧 " + rain + " rain";
+        card.querySelector(".fc-uv").textContent        = "☀️ UV " + uv;
+
+        const uvInfo = getUVInfo(parseFloat(uv));
+        card.querySelector(".fc-uv").style.color = uvInfo.color;
+    });
+}
+
 // DISPLAY WEATHER
 function displayWeather(data) {
-    const temp = data.current.temp_c;
+    const temp      = data.current.temp_c;
     const condition = data.current.condition.text;
-    const feels = data.current.feelslike_c;
-    const humidity = data.current.humidity;
-    const wind = data.current.wind_kph;
-    const location = data.location.name + ", " + data.location.region;
+    const feels     = data.current.feelslike_c;
+    const humidity  = data.current.humidity;
+    const wind      = data.current.wind_kph;
+    const uv        = data.current.uv ?? null;
+    const location  = data.location.name + ", " + data.location.region;
 
     document.getElementById("location-name").innerText = "📍 " + location;
-    document.getElementById("temp").innerText = "🌡 Temp: " + temp + "°C";
-    document.getElementById("condition").innerText = "🌥 " + condition;
-    document.getElementById("feels").innerText = "🌡️ Feels Like: " + feels + "°C";
-    document.getElementById("humidity").innerText = "💧 Humidity: " + humidity + "%";
-    document.getElementById("wind").innerText = "🌬 Wind: " + wind + " km/h";
+    document.getElementById("temp").innerText          = "🌡 Temp: " + temp + "°C";
+    document.getElementById("condition").innerText     = "🌥 " + condition;
+    document.getElementById("feels").innerText         = "🌡️ Feels Like: " + feels + "°C";
+    document.getElementById("humidity").innerText      = "💧 Humidity: " + humidity + "%";
+    document.getElementById("wind").innerText          = "🌬 Wind: " + wind + " km/h";
+
+    // ── UV Index display ──────────────────────────────
+    displayUVIndex(uv);
 
     if (centerMarker) {
         centerMarker.bindPopup(`
             <b>📍 ${data.location.name}</b><br>
             🌡 ${temp}°C<br>
             🌥 ${condition}<br>
-            💧 ${humidity}% humidity
+            💧 ${humidity}% humidity<br>
+            ☀️ UV: ${uv !== null ? uv : "N/A"}
         `);
     }
 
@@ -118,9 +177,80 @@ function displayWeather(data) {
     }).addTo(map);
 }
 
+// ── UV INDEX METER ────────────────────────────────────────
+function getUVInfo(uv) {
+    if (uv === null || uv === undefined) {
+        return { category: "N/A", color: "#7ecfdf", barGradient: "#7ecfdf, #7ecfdf", pct: 0 };
+    }
+    const val = parseFloat(uv);
+    if (val <= 2)  return { category: "Low — no protection needed",          color: "#4ade80", barGradient: "#4ade80, #22c55e",          pct: Math.round((val / 11) * 100) };
+    if (val <= 5)  return { category: "Moderate — wear sunscreen",            color: "#fbbf24", barGradient: "#fbbf24, #f59e0b",          pct: Math.round((val / 11) * 100) };
+    if (val <= 7)  return { category: "High — seek shade midday",             color: "#fb923c", barGradient: "#fb923c, #f97316",          pct: Math.round((val / 11) * 100) };
+    if (val <= 10) return { category: "Very High — extra protection required", color: "#f87171", barGradient: "#f87171, #ef4444",         pct: Math.round((val / 11) * 100) };
+    return             { category: "Extreme — avoid direct sun exposure",    color: "#c084fc", barGradient: "#c084fc, #a855f7",          pct: 100 };
+}
+
+function displayUVIndex(uv) {
+    const info = getUVInfo(uv);
+    const displayVal = (uv !== null && uv !== undefined) ? parseFloat(uv).toFixed(1) : "N/A";
+
+    const badge = document.getElementById("uv-value-badge");
+    badge.textContent = displayVal;
+    badge.style.color = info.color;
+    badge.style.background = info.color + "20";
+    badge.style.border = `1px solid ${info.color}55`;
+
+    const fill = document.getElementById("uv-bar-fill");
+    fill.style.width = info.pct + "%";
+    fill.style.background = `linear-gradient(90deg, ${info.barGradient})`;
+
+    document.getElementById("uv-category").textContent = info.category;
+    document.getElementById("uv-category").style.color = info.color;
+}
+
+// ── GEMINI WEATHER PREDICTION ────────────────────────────
+async function fetchWeatherPrediction(data) {
+    const predBox    = document.getElementById("weather-prediction");
+    const loader     = document.getElementById("weather-prediction-loader");
+    const textEl     = document.getElementById("weather-prediction-text");
+
+    // Show box + loader
+    predBox.style.display = "block";
+    loader.style.display  = "flex";
+    textEl.textContent    = "";
+
+    const w = data.current;
+    const loc = data.location.name + ", " + data.location.region;
+
+    const prompt = `You are a concise weather forecaster. Given the current conditions below, write a SHORT 2-sentence forecast for the next 1–3 hours. Be specific and actionable. No markdown, no bullet points, plain text only.
+
+Location: ${loc}
+Temperature: ${w.temp_c}°C (feels like ${w.feelslike_c}°C)
+Condition: ${w.condition.text}
+Humidity: ${w.humidity}%
+Wind: ${w.wind_kph} km/h
+UV Index: ${w.uv ?? "N/A"}
+Cloud Cover: ${w.cloud}%
+Precipitation (mm): ${w.precip_mm}
+
+Respond with 2 plain sentences only.`;
+
+    try {
+        const raw = await callGemini(prompt);
+        // Strip any accidental markdown
+        const clean = raw.replace(/[*_`#]/g, "").trim();
+        loader.style.display = "none";
+        textEl.textContent   = clean;
+    } catch (err) {
+        loader.style.display = "none";
+        textEl.textContent   = "⚠️ Forecast unavailable.";
+        console.error("Weather prediction error:", err);
+    }
+}
+
 // ALERT WEATHER
 function checkAlerts(data) {
-    const temp = data.current.temp_c;
+    const temp      = data.current.temp_c;
     const condition = data.current.condition.text.toLowerCase();
 
     let message = "";
@@ -233,7 +363,7 @@ async function fetchHospitals(lat, lng) {
             if (!address) address = place.tags?.name + " (Location approx)";
             if (!address) address = "Address not available";
 
-            const phone = place.tags?.phone || "No contact";
+            const phone     = place.tags?.phone || "No contact";
             const emergency = place.tags?.emergency ? "Yes" : "No";
 
             const marker = L.marker([place.lat, place.lon], { icon: hospitalIcon }).addTo(map);
@@ -295,7 +425,7 @@ async function showDetails(name, lat, lon, phone, emergency) {
     panel.style.display = "block";
 
     try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
         const data = await res.json();
 
         panel.innerHTML = `
@@ -316,13 +446,13 @@ async function showDetails(name, lat, lon, phone, emergency) {
 }
 
 // ═══════════════════════════════════════════════════
-// 🔑 GEMINI API KEY — paste your key here (ONE place)
+// 🔑 GEMINI API KEY
 // ═══════════════════════════════════════════════════
-const GEMINI_API_KEY = "AIzaSyAWpLqmIZeBOBCp59FQw7GMTRlNfysW27o";
+const GEMINI_API_KEY = "";
 const GEMINI_MODEL   = "gemini-2.5-flash";
 const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-// Shared Gemini call helper — collects ALL parts (handles Gemini 2.5 thinking mode)
+// Shared Gemini call helper
 async function callGemini(prompt) {
     const res = await fetch(GEMINI_URL, {
         method: "POST",
@@ -340,18 +470,15 @@ async function callGemini(prompt) {
     if (data.error) throw new Error("Gemini API: " + data.error.message);
     if (!data.candidates || !data.candidates[0]) throw new Error("Gemini returned no candidates.");
 
-    // Gemini 2.5 Flash may return multiple parts (thinking + answer); join all text parts
     const parts = data.candidates[0].content.parts || [];
     const text  = parts.map(p => p.text || "").join("").trim();
-    console.log("Gemini raw response:", text); // helpful for debugging
+    console.log("Gemini raw response:", text);
     return text;
 }
 
-// Robustly pull first JSON object from Gemini response (handles thinking text before JSON)
+// Robustly pull first JSON object from Gemini response
 function extractJSON(text) {
-    // Strip markdown fences
     let clean = text.replace(/```json|```/gi, "");
-    // Find the first { and last } — everything in between is our JSON
     const start = clean.indexOf("{");
     const end   = clean.lastIndexOf("}");
     if (start === -1 || end === -1) {
@@ -368,7 +495,7 @@ function extractJSON(text) {
 }
 
 // ─────────────────────────────────────────────
-// 🤖 AI RISK PREDICTION  (Gemini 2.5 Flash)
+// 🤖 AI RISK PREDICTION
 // ─────────────────────────────────────────────
 
 function openAIPanel() {
@@ -382,9 +509,9 @@ function closeAIPanel() {
 async function runAIPrediction() {
     openAIPanel();
 
-    document.getElementById("aiLoader").style.display = "flex";
-    document.getElementById("aiResult").style.display = "none";
-    document.getElementById("aiIdle").style.display = "none";
+    document.getElementById("aiLoader").style.display  = "flex";
+    document.getElementById("aiResult").style.display  = "none";
+    document.getElementById("aiIdle").style.display    = "none";
 
     if (!lastWeatherData) {
         showAIError("No weather data yet. Wait for the map to finish loading.");
@@ -393,16 +520,16 @@ async function runAIPrediction() {
 
     const w = lastWeatherData;
     const inputPayload = {
-        temperature: w.current.temp_c,
-        humidity: w.current.humidity,
-        wind_speed: w.current.wind_kph,
-        condition: w.current.condition.text,
-        uv_index: w.current.uv ?? "N/A",
-        air_quality: "Moderate",
-        crowd_density: "Unknown",
-        nearby_hospitals: "Unknown",
-        water_sources: "Unknown",
-        location: `${w.location.name}, ${w.location.region}`
+        temperature:        w.current.temp_c,
+        humidity:           w.current.humidity,
+        wind_speed:         w.current.wind_kph,
+        condition:          w.current.condition.text,
+        uv_index:           w.current.uv ?? "N/A",
+        air_quality:        "Moderate",
+        crowd_density:      "Unknown",
+        nearby_hospitals:   "Unknown",
+        water_sources:      "Unknown",
+        location:           `${w.location.name}, ${w.location.region}`
     };
 
     const prompt = `Analyze this weather data and respond with ONLY a raw JSON object. No explanation, no markdown, no code fences, no text before or after. Start your response with { and end with }.
@@ -443,7 +570,7 @@ function renderAIResult(r, location) {
     const score = Math.min(100, Math.max(0, r.risk_score));
 
     const humanAdvice = (r.human_advice || []).map(a => `<li>${a}</li>`).join("");
-    const govRec = (r.government_recommendation || []).map(a => `<li>${a}</li>`).join("");
+    const govRec      = (r.government_recommendation || []).map(a => `<li>${a}</li>`).join("");
 
     document.getElementById("aiResult").innerHTML = `
         <p style="color:#7ecfdf; font-size:12px; margin: 0 0 10px;">📍 ${location}</p>
@@ -479,16 +606,16 @@ function renderAIResult(r, location) {
 
 function showAIError(msg) {
     document.getElementById("aiLoader").style.display = "none";
-    document.getElementById("aiIdle").style.display = "none";
-    document.getElementById("aiResult").innerHTML = `<div class="ai-error">⚠️ ${msg}</div>`;
+    document.getElementById("aiIdle").style.display   = "none";
+    document.getElementById("aiResult").innerHTML     = `<div class="ai-error">⚠️ ${msg}</div>`;
     document.getElementById("aiResult").style.display = "block";
 }
 
 // ═══════════════════════════════════════════════════════════
-// 💬 AI EMERGENCY CHATBOT  (Gemini 2.5 Flash)
+// 💬 AI EMERGENCY CHATBOT
 // ═══════════════════════════════════════════════════════════
 
-let chatHistory   = [];   // multi-turn conversation memory
+let chatHistory   = [];
 let chatOpen      = false;
 let chatMinimized = false;
 let isBotTyping   = false;
@@ -508,14 +635,13 @@ function toggleChat() {
 }
 
 function openChat() {
-    chatOpen = true;
+    chatOpen      = true;
     chatMinimized = false;
     const win = document.getElementById("chatWindow");
     win.classList.add("open");
     win.classList.remove("minimized");
     document.getElementById("chatBtnIcon").textContent = "💬";
 
-    // Show welcome message once
     if (chatHistory.length === 0) {
         appendBotMessage(buildWelcomeMessage(), false);
     }
@@ -524,7 +650,7 @@ function openChat() {
 }
 
 function closeChat() {
-    chatOpen = false;
+    chatOpen      = false;
     chatMinimized = false;
     document.getElementById("chatWindow").classList.remove("open", "minimized");
     document.getElementById("chatBtnIcon").textContent = "💬";
@@ -569,7 +695,6 @@ async function sendChatMessage() {
     const raw   = input.value.trim();
     if (!raw) return;
 
-    // Sanitize
     const userText = raw.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     input.value = "";
 
@@ -588,7 +713,6 @@ async function sendChatMessage() {
         appendBotMessage(reply, isEmergency);
         chatHistory.push({ role: "model", parts: [{ text: reply }] });
 
-        // Voice response
         speakText(reply);
 
     } catch (err) {
@@ -618,6 +742,7 @@ LIVE CONDITIONS RIGHT NOW:
 - Humidity: ${w.current.humidity}%
 - Wind: ${w.current.wind_kph} km/h
 - Condition: ${w.current.condition.text}
+- UV Index: ${w.current.uv ?? "N/A"}
 - Coordinates: ${userLat.toFixed(4)}, ${userLng.toFixed(4)}
 
 Use this real data in every relevant response.`;
@@ -629,15 +754,11 @@ Use this real data in every relevant response.`;
 async function fetchChatReply(userMessage) {
     const systemCtx = buildSystemContext();
 
-    // Build full conversation for Gemini multi-turn
     const contents = [
-        // Inject system context as first user turn
         { role: "user",  parts: [{ text: systemCtx + "\n\nUser: " + userMessage }] }
     ];
 
-    // Append prior history (skip the injected system turn already embedded)
     if (chatHistory.length > 1) {
-        // Re-build with history for true multi-turn
         const fullContents = [
             { role: "user",  parts: [{ text: systemCtx }] },
             { role: "model", parts: [{ text: "Understood. I'm ready to assist." }] },
@@ -653,11 +774,10 @@ async function fetchChatReply(userMessage) {
         });
         const data = await res.json();
         if (data.error) throw new Error("Gemini API: " + data.error.message);
-    if (!data.candidates || !data.candidates[0]) throw new Error("Gemini returned no candidates.");
+        if (!data.candidates || !data.candidates[0]) throw new Error("Gemini returned no candidates.");
         return data.candidates[0].content.parts[0].text.trim();
     }
 
-    // First message — simple call
     return await callGemini(systemCtx + "\n\nUser question: " + userMessage);
 }
 
@@ -677,11 +797,10 @@ function appendUserMessage(text) {
 }
 
 function appendBotMessage(text, isEmergency = false) {
-    const area  = document.getElementById("chatMessages");
-    const row   = document.createElement("div");
+    const area = document.getElementById("chatMessages");
+    const row  = document.createElement("div");
     row.className = "chat-msg-row";
 
-    // Convert newlines & basic markdown **bold**
     const html = text
         .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
         .replace(/\n/g, "<br>");
@@ -728,7 +847,7 @@ function toggleVoice() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = "en-IN";
-    recognition.interimResults = false;
+    recognition.interimResults  = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -757,9 +876,8 @@ function toggleVoice() {
 function speakText(text) {
     if (!window.speechSynthesis) return;
 
-    // Strip HTML tags for speech
-    const plain = text.replace(/<[^>]+>/g, "");
-    const max   = 200; // keep TTS brief
+    const plain     = text.replace(/<[^>]+>/g, "");
+    const max       = 200;
     const utterance = new SpeechSynthesisUtterance(plain.slice(0, max));
     utterance.lang  = "en-IN";
     utterance.rate  = 1;
@@ -767,18 +885,15 @@ function speakText(text) {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
 }
+
 // SEARCH LOCATION
 async function searchLocation() {
-
     const location = document.getElementById("location-input").value;
-
     if (!location) return;
 
     try {
-
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${location}`;
-
-        const res = await fetch(url);
+        const url  = `https://nominatim.openstreetmap.org/search?format=json&q=${location}`;
+        const res  = await fetch(url);
         const data = await res.json();
 
         if (data.length === 0) {
@@ -792,18 +907,13 @@ async function searchLocation() {
         userLat = lat;
         userLng = lon;
 
-        // Move map
         map.flyTo([lat, lon], 13);
 
-        // Move center marker
         if (centerMarker) {
             centerMarker.setLatLng([lat, lon]);
         }
 
-        // Update weather
         fetchWeather(lat, lon);
-
-        // Refresh current layer
         searchNearby(lat, lon);
 
     } catch (err) {
@@ -812,52 +922,41 @@ async function searchLocation() {
 }
 
 // AUTOCOMPLETE SEARCH
-const input = document.getElementById("location-input");
+const input          = document.getElementById("location-input");
 const suggestionsBox = document.getElementById("suggestions");
 
 let searchTimeout;
 
 input.addEventListener("input", () => {
-
     clearTimeout(searchTimeout);
 
     searchTimeout = setTimeout(async () => {
-
         const query = input.value.trim();
 
-        if(query.length < 2){
+        if (query.length < 2) {
             suggestionsBox.style.display = "none";
             return;
         }
 
-        try{
-
-            const url =
-            `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`;
-
-            const res = await fetch(url);
-
+        try {
+            const url  = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`;
+            const res  = await fetch(url);
             const data = await res.json();
 
             suggestionsBox.innerHTML = "";
 
-            if(data.length === 0){
+            if (data.length === 0) {
                 suggestionsBox.style.display = "none";
                 return;
             }
 
             data.forEach(place => {
-
                 const item = document.createElement("div");
-
                 item.className = "suggestion-item";
-
                 item.innerText = place.display_name;
 
                 item.onclick = () => {
-
                     input.value = place.display_name;
-
                     suggestionsBox.style.display = "none";
 
                     const lat = parseFloat(place.lat);
@@ -868,270 +967,24 @@ input.addEventListener("input", () => {
 
                     map.flyTo([lat, lon], 13);
 
-                    if(centerMarker){
+                    if (centerMarker) {
                         centerMarker.setLatLng([lat, lon]);
                     }
 
                     fetchWeather(lat, lon);
-
                     searchNearby(lat, lon);
                 };
 
                 suggestionsBox.appendChild(item);
-
             });
 
             suggestionsBox.style.display = "block";
 
-        } catch(err){
-
+        } catch (err) {
             console.log("Autocomplete error:", err);
-
         }
 
-    }, 500); // waits 0.5 sec before API call
-
+    }, 500);
 });
 
-function setupRouteAutocomplete(inputId, suggestionId){
-
-    const input = document.getElementById(inputId);
-
-    const suggestionBox =
-    document.getElementById(suggestionId);
-
-    let timeout;
-
-    input.addEventListener("input", () => {
-
-        clearTimeout(timeout);
-
-        timeout = setTimeout(async () => {
-
-            const query = input.value.trim();
-
-            if(query.length < 2){
-
-                suggestionBox.style.display = "none";
-
-                return;
-            }
-
-            try{
-
-                const res = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`
-                );
-
-                const data = await res.json();
-
-                suggestionBox.innerHTML = "";
-
-                if(data.length === 0){
-
-                    suggestionBox.style.display = "none";
-
-                    return;
-                }
-
-                data.forEach(place => {
-
-                    const item =
-                    document.createElement("div");
-
-                    item.className = "suggestion-item";
-
-                    item.innerText =
-                    place.display_name;
-
-                    item.onclick = () => {
-
-                        input.value =
-                        place.display_name;
-
-                        suggestionBox.style.display =
-                        "none";
-                    };
-
-                    suggestionBox.appendChild(item);
-
-                });
-
-                suggestionBox.style.display =
-                "block";
-
-            } catch(err){
-
-                console.log(err);
-
-            }
-
-        }, 400);
-
-    });
-
-    // Hide on outside click
-    document.addEventListener("click", (e) => {
-
-        if(!suggestionBox.contains(e.target)
-        && e.target !== input){
-
-            suggestionBox.style.display = "none";
-
-        }
-
-    });
-}
-
-// ROUTE BUTTON
-    const routeBtn = popupNode.querySelector(".route-btn");
-
-    if(routeBtn){
-
-        routeBtn.onclick = function(){
-
-            showRoute(
-                this.dataset.lat,
-                this.dataset.lon
-            );
-
-        };
-    }
-
-});
-
-            // ✅ KEEP THIS (important for clearing markers)
-            markers.push(marker);
-        });
-
-    } catch (err) {
-        console.error("Error fetching hospitals:", err);
-    }
-}
-
-// SHOW ROUTE
-function showRoute(destLat, destLng) {
-
-    // remove old route
-    if (routingControl) {
-        map.removeControl(routingControl);
-    }
-
-    routingControl = L.Routing.control({
-
-        waypoints: [
-            L.latLng(userLat, userLng), // current location
-            L.latLng(destLat, destLng)  // destination
-        ],
-
-        routeWhileDragging: false,
-
-        lineOptions: {
-            styles: [{ color: '#0ea5e9', weight: 6 }]
-        },
-
-        createMarker: function(i, wp) {
-
-            if(i === 0){
-                return L.marker(wp.latLng)
-                    .bindPopup("📍 Your Location");
-            }
-
-            return L.marker(wp.latLng)
-                .bindPopup("🏥 Destination");
-        }
-
-    }).addTo(map);
-}
-
-
-//RouteMap
-async function createManualRoute() {
-
-    const source = document.getElementById("source-input").value;
-    const destination = document.getElementById("destination-input").value;
-
-    if(!source || !destination){
-        alert("Enter both locations");
-        return;
-    }
-
-    try{
-
-        // SOURCE
-        let res1 = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${source}`
-        );
-
-        let data1 = await res1.json();
-
-        // DESTINATION
-        let res2 = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${destination}`
-        );
-
-        let data2 = await res2.json();
-
-        if(data1.length === 0 || data2.length === 0){
-            alert("Location not found");
-            return;
-        }
-
-        const sourceLat = parseFloat(data1[0].lat);
-        const sourceLon = parseFloat(data1[0].lon);
-
-        const destLat = parseFloat(data2[0].lat);
-        const destLon = parseFloat(data2[0].lon);
-
-        // REMOVE OLD ROUTE
-        if(routingControl){
-            map.removeControl(routingControl);
-        }
-
-        // CREATE ROUTE
-        routingControl = L.Routing.control({
-
-            waypoints: [
-                L.latLng(sourceLat, sourceLon),
-                L.latLng(destLat, destLon)
-            ],
-
-            routeWhileDragging:false,
-
-            lineOptions:{
-                styles:[{
-                    color:"#0ea5e9",
-                    weight:6
-                }]
-            }
-
-        }).addTo(map);
-
-        // FIT MAP
-        map.fitBounds([
-            [sourceLat, sourceLon],
-            [destLat, destLon]
-        ]);
-
-    } catch(err){
-
-        console.log("Route error:", err);
-
-    }
-}
-
-window.onload = () => {
-
-    initMap();
-
-    setupRouteAutocomplete(
-        "source-input",
-        "source-suggestions"
-    );
-
-    setupRouteAutocomplete(
-        "destination-input",
-        "destination-suggestions"
-    );
-
-};
+window.onload = initMap;

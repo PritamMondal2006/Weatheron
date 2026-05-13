@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <link rel="shortcut icon" href="img/location_pointer.png"
-    <link rel="manifest" href="/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEATHERON - Live Weather Radar</title>
@@ -33,54 +32,88 @@
         <p id="feels"></p>
         <p id="humidity"></p>
         <p id="wind"></p>
+
+        <!-- UV INDEX METER -->
+        <div id="uv-wrap">
+            <div id="uv-label-row">
+                <span>☀️ UV Index</span>
+                <span id="uv-value-badge">--</span>
+            </div>
+            <div id="uv-bar-bg">
+                <div id="uv-bar-fill" style="width:0%;"></div>
+            </div>
+            <div id="uv-category"></div>
+        </div>
+
         <p id="alert-box"></p>
+
+        <!-- GEMINI WEATHER PREDICTION -->
+        <div id="weather-prediction" style="display:none;">
+            <div id="weather-prediction-title">🔮 AI Forecast</div>
+            <div id="weather-prediction-loader" style="display:none;">
+                <div class="pred-spinner"></div>
+                <p>Generating forecast...</p>
+            </div>
+            <p id="weather-prediction-text"></p>
+        </div>
     </div>
+
+    <!-- 3-DAY FORECAST STRIP -->
+    <div id="forecast-strip">
+        <div id="forecast-header">📅 3-Day Forecast</div>
+        <div id="forecast-cards">
+            <div class="forecast-card" id="fc-0">
+                <div class="fc-day">--</div>
+                <div class="fc-icon">--</div>
+                <div class="fc-condition">--</div>
+                <div class="fc-temps">
+                    <span class="fc-high">--</span>
+                    <span class="fc-sep">/</span>
+                    <span class="fc-low">--</span>
+                </div>
+                <div class="fc-rain">💧 --</div>
+                <div class="fc-uv">☀️ UV --</div>
+            </div>
+            <div class="forecast-card" id="fc-1">
+                <div class="fc-day">--</div>
+                <div class="fc-icon">--</div>
+                <div class="fc-condition">--</div>
+                <div class="fc-temps">
+                    <span class="fc-high">--</span>
+                    <span class="fc-sep">/</span>
+                    <span class="fc-low">--</span>
+                </div>
+                <div class="fc-rain">💧 --</div>
+                <div class="fc-uv">☀️ UV --</div>
+            </div>
+            <div class="forecast-card" id="fc-2">
+                <div class="fc-day">--</div>
+                <div class="fc-icon">--</div>
+                <div class="fc-condition">--</div>
+                <div class="fc-temps">
+                    <span class="fc-high">--</span>
+                    <span class="fc-sep">/</span>
+                    <span class="fc-low">--</span>
+                </div>
+                <div class="fc-rain">💧 --</div>
+                <div class="fc-uv">☀️ UV --</div>
+            </div>
+        </div>
+    </div>
+
     <!-- SEARCH BAR -->
     <div id="search-box">
-
-    <input
-        type="text"
-        id="location-input"
-        placeholder="Search location..."
-        autocomplete="off"
-    >
-
-    <button id="search-btn"
-    onclick="searchLocation()">🔍</button>
-
-    <div id="suggestions"></div>
-
-</div>
-    
-    <!-- ROUTE SEARCH -->
-<div id="route-box">
-
-    <div class="route-input-wrap">
-
-        <input type="text"
-        id="source-input"
-        placeholder="Source location">
-
-        <div class="route-suggestions"
-        id="source-suggestions"></div>
-
+        <input
+            type="text"
+            id="location-input"
+            placeholder="Search location..."
+            autocomplete="off"
+        >
+        <button id="search-btn" onclick="searchLocation()">🔍</button>
+        <div id="suggestions"></div>
     </div>
 
-    <div class="route-input-wrap">
-
-        <input type="text"
-        id="destination-input"
-        placeholder="Destination location">
-
-        <div class="route-suggestions"
-        id="destination-suggestions"></div>
-
-    </div>
-
-    <button onclick="createManualRoute()">
-        🚗 Route
-    </button></div>
-    
+    <!-- MAP -->
     <div id="map"></div>
 
     <!-- DETAILS PANEL -->
